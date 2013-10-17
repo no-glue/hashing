@@ -1,8 +1,9 @@
 #java specific
 *.class
-
-#netbeans ignore personal stuff 
-*./bin/
+*.classpath
+*.project
+#eclipsegit ignore personal stuff 
+/bin/
 
 
 ## generic files to ignore
