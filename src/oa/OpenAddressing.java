@@ -4,139 +4,157 @@ import java.io.BufferedReader;
 import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.IOException;
+import java.util.Random;
 import java.util.Scanner;
 public class OpenAddressing {
-    private final static int TABLE_SIZE = 1000;
+    private final int DEFAULT_TABLE_SIZE = 101;
+    private float threshold = 0.75f;
+    private int maxSize = 96;
+    private int size = 0;
 
     HashEntry[] table;
 
     OpenAddressing() {
-          table = new HashEntry[TABLE_SIZE];
-          for (int i = 0; i < TABLE_SIZE; i++)
+          table = new HashEntry[DEFAULT_TABLE_SIZE];
+          for (int i = 0; i < DEFAULT_TABLE_SIZE; i++)
                 table[i] = null;
     }
 
+    void setThreshold(float threshold) {
+          this.threshold = threshold;
+          maxSize = (int) (table.length * threshold);
+    }
+
     public long get(long key) {
-          int hash = (int) (key % TABLE_SIZE);
+    		int hash = hashFn(key);
           int initialHash = -1;
           while (hash != initialHash
-                      && (table[hash] == DeletedEntry.getUniqueDeletedEntry() || table[hash] != null
-                                 && table[hash].getKey() != key)) {
+                      && (table[hash] == DeletedEntry.getUniqueDeletedEntry()
+                      || table[hash] != null
+                      && table[hash].getKey() != key)) {
                 if (initialHash == -1)
                       initialHash = hash;
-                hash = (hash + 1) % TABLE_SIZE;
+                hash = (hash + 1) % table.length;
           }
           if (table[hash] == null || hash == initialHash)
                 return -1;
           else
                 return table[hash].getValue();
     }
-
-    public void put(long key, long value) {
-          int hash = (int) (key % TABLE_SIZE);
+    
+    public int find(long key) {
+    	int find_attempt = 1;
+		int hash = hashFn(key);
+      int initialHash = -1;
+      while (hash != initialHash
+                  && (table[hash] == DeletedEntry.getUniqueDeletedEntry()
+                  || table[hash] != null
+                  && table[hash].getKey() != key)) {
+            if (initialHash == -1)
+                  initialHash = hash;
+            hash = (hash + 1) % table.length;
+            find_attempt += 1;
+      }
+      if (table[hash] == null || hash == initialHash)
+            return 0;
+      else
+            return find_attempt;
+}
+    public void put(long value) {
+    	long key = value;
+          int hash = hashFn(key);
           int initialHash = -1;
           int indexOfDeletedEntry = -1;
           while (hash != initialHash
-                      && (table[hash] == DeletedEntry.getUniqueDeletedEntry() || table[hash] != null
-                                 && table[hash].getKey() != key)) {
+                      && (table[hash] == DeletedEntry.getUniqueDeletedEntry()
+                      || table[hash] != null
+                      && table[hash].getKey() != key)) {
                 if (initialHash == -1)
                       initialHash = hash;
                 if (table[hash] == DeletedEntry.getUniqueDeletedEntry())
                       indexOfDeletedEntry = hash;
-                hash = (hash + 1) % TABLE_SIZE;
+                hash = (hash + 1) % table.length;
           }
           if ((table[hash] == null || hash == initialHash)
-                      && indexOfDeletedEntry != -1)
+                      && indexOfDeletedEntry != -1) {
                 table[indexOfDeletedEntry] = new HashEntry(key, value);
-          else if (initialHash != hash)
+                size++;
+          } else if (initialHash != hash)
                 if (table[hash] != DeletedEntry.getUniqueDeletedEntry()
                            && table[hash] != null && table[hash].getKey() == key)
                       table[hash].setValue(value);
-                	else
+                else {
                       table[hash] = new HashEntry(key, value);
+                      size++;
+                }
+          if (size >= maxSize)
+                resize();
+    }
+    private int hashFn(long key) {
+    	int hash = (int) (key % table.length);
+    	return hash;
+	}
+
+    private void resize() {
+          int tableSize = 2 * table.length;
+          maxSize = (int) (tableSize * threshold);
+          HashEntry[] oldTable = table;
+          table = new HashEntry[tableSize];
+          size = 0;
+          for (int i = 0; i < oldTable.length; i++)
+                if (oldTable[i] != null
+                           && oldTable[i] != DeletedEntry.getUniqueDeletedEntry())
+                      put(oldTable[i].getValue());
     }
 
-    public void remove(long key) {
-          int hash = (int) (key % TABLE_SIZE);
+    public void remove(long l) {
+    	int hash = hashFn(l);
           int initialHash = -1;
           while (hash != initialHash
-                      && (table[hash] == DeletedEntry.getUniqueDeletedEntry() || table[hash] != null
-                                 && table[hash].getKey() != key)) {
+                      && (table[hash] == DeletedEntry.getUniqueDeletedEntry()
+                      || table[hash] != null
+                      && table[hash].getKey() != l)) {
                 if (initialHash == -1)
                       initialHash = hash;
-                hash = (hash + 1) % TABLE_SIZE;
+                hash = (hash + 1) % table.length;
           }
-          if (hash != initialHash && table[hash] != null)
+          if (hash != initialHash && table[hash] != null) {
                 table[hash] = DeletedEntry.getUniqueDeletedEntry();
+                size--;
+          }
     }
-    
+
     public static void main(String[] args) { 
         OpenAddressing cMap = new OpenAddressing();
-       /* st.put("A",123123);
-        st.put("B",123122);
-        st.put("C",123121);
-        st.put("D",123125);
-        st.put("E",123124);
-        st.put("F",123120);
-        // print keys
-        for (String s : st.keys()) 
-            System.out.println((s + " " + st.get(s)));  */
-        long sum=0;
-        System.out.println("Enter File Name : ");
+	    System.out.println("Enter File Name : ");
 		Scanner scanner = new Scanner(System.in);
 		FileReader fileReader;
 		try {
 			fileReader = new FileReader(scanner.nextLine());
 			BufferedReader br = new BufferedReader(fileReader);
 			String line;
-			int counter = 1;
+			int sum = 0;
 			double startTime = System.currentTimeMillis();
+			long count = 0;
 			while ((line = br.readLine()) != null) {
 				String[] splited = line.split("\\s+");
 				
 				if (splited[0].equalsIgnoreCase("Insert")) {
-				//	cMap.insert(Long.parseLong(splited[1]), Long.parseLong(splited[2]));
-					cMap.put(Long.parseLong(splited[1]), Long.parseLong(splited[2]));
-						
+					cMap.put(Long.parseLong(splited[1]));
 				}
 				else if (splited[0].equalsIgnoreCase("Find")) {
-					cMap.get(Long.parseLong(splited[1]));
-					
-					/*if (!cMap.isEmpty()) {
-					//	cMap.find(Long.parseLong(splited[1]));
-						
-					}
-				else {
-					System.out.println("SkipList Empty");
-				}
-				*/
-				} else if (splited[0].equalsIgnoreCase("FindMin")) {
-			//		long value  = cMap.findmin();
-			//		sum += value;
-					
-				} else if (splited[0].equalsIgnoreCase("FindMax")) {
-			//		long value  = cMap.findmax();
-			//		sum += value;
-					
+					sum += cMap.find(Long.parseLong(splited[1]));
 				} else if (splited[0].equalsIgnoreCase("Remove") ) {
-				//	cMap.remove(Long.parseLong(splited[1]));
 					cMap.remove(Long.parseLong(splited[1]));
-				}  else if (splited[0].equalsIgnoreCase("RemoveValue")) {
-					//	long value  = cMap.removeValues(Long.parseLong(splited[1]));
-					//	sum += value;
-				}
-				 else if (splited[0].equalsIgnoreCase("Size")) {
-				//		long value  = cMap.size();
-				//		sum += value;
-				}else {}
-				System.out.println("Scanning Line : "+counter);
-				counter +=1;
+				} 
+				else {}
+				count++;
+				
 			}
-			System.out.println(cMap.get(Long.parseLong("7197966325281384634")));
+			System.out.println("Scanned  Lines  : "+count);
+			System.out.println("Answer  : "+sum);
 			double endTime = System.currentTimeMillis();
 			double totalTime = (endTime - startTime) / 1000;
-			System.out.println("Answer = "+sum);
-			
 			System.out.println("Starting Time : " + startTime + " MilliSeconds");
 			System.out.println("Ending Time : " + endTime + " MilliSeconds");
 			System.out.println("Total Time : " + totalTime + " Seconds");
@@ -146,11 +164,8 @@ public class OpenAddressing {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
 		} catch (IOException e) {
-			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
     }
-
-
     
 }
